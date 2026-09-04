@@ -1,0 +1,22 @@
+STACK TRACE PROOF — Sandbox Evaluator returns real Python tracebacks
+=====================================================================
+
+Test: deliberately broken extractor code missing a key that doesn't exist
+in the sample data, run through core/sandbox.py's run_in_sandbox().
+
+Command: python -m core.test_stack_trace_manual
+
+Generated (deliberately broken) code:
+    def extract(raw):
+        return raw['this_key_does_not_exist']
+
+Sandbox output:
+{
+  "passed": false,
+  "reason": "'this_key_does_not_exist'",
+  "stack_trace": "Traceback (most recent call last):\n  File \"<string>\", line 10, in <module>\n  File \"<string>\", line 5, in extract\nKeyError: 'this_key_does_not_exist'\n"
+}
+
+This confirms the Sandbox Evaluator returns a genuine Python stack trace
+(file, line number, exception type) rather than just an error string,
+satisfying the assignment's explicit requirement.
