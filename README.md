@@ -40,6 +40,46 @@ Orchestrator (state machine, retry budget 5, AST-diff memory)
 - **`.env.example`, not `.env`, is committed** — standard practice, keeps
   the real API key out of a public repo.
 
+## Security Hardening
+
+The static AST scanner (`core/static_scan.py`) originally only matched
+banned imports/calls by their literal name (`eval`, `import os`, etc.),
+which a payload could route around via `getattr(__builtins__, '__import__')`
+or by crawling the object graph via dunder attributes
+(`().__class__.__bases__[0].__subclasses__()`). It now additionally:
+
+- bans `getattr`/`setattr`/`delattr`/`vars`/`globals`/`locals` outright,
+  since any of them can retrieve a banned capability indirectly instead of
+  spelling it out where the scanner would catch it, and
+- bans **all** dunder attribute/name access (`__class__`, `__bases__`,
+  `__globals__`, ...), since a generated `extract(raw)` restricted to
+  `json`/`re`/`datetime`/`xml.etree.ElementTree` never has a legitimate
+  reason to touch one.
+
+This is defense-in-depth on top of the Docker sandbox's own isolation
+(`network_disabled`, `read_only`, non-root, `cap_drop=["ALL"]`) — even a
+scanner bypass still can't reach the network or filesystem. See
+`tests/test_static_scan.py` for the specific bypasses tested against, and
+`tests/test_sandbox.py::test_network_access_is_blocked_at_the_sandbox_level_independent_of_the_scanner`
+for that second layer proven in isolation.
+
+## Tests
+
+```powershell
+pip install -r requirements.txt -r requirements-dev.txt
+pytest -v                  # everything, including Docker sandbox tests
+pytest -v -m "not docker"  # skip sandbox tests if Docker isn't running locally
+```
+
+`tests/` covers the static scanner (including the two bypasses above), the
+Docker sandbox (valid output, real stack traces, schema-violation
+rejection, network isolation tested independently of the scanner), the
+AST-diff memory, the deployer's atomic version swap, schema validation,
+every mock-source mutation mode, and both agents with the Anthropic API
+mocked out (so CI needs no key and costs nothing to run). CI
+(`.github/workflows/ci.yml`) runs the full suite, Docker tests included,
+on every push and PR.
+
 ## Setup
 
 ```powershell
@@ -96,3 +136,7 @@ curl.exe -X POST "http://127.0.0.1:9000/admin/mutate?mode=malicious"
 - Polling-based detection (5s interval), not push-based.
 - Retry budget (5) escalates to a human-needed state; not wired to alerting.
 - Assumes JSON/XML-like sources; binary protocols aren't covered.
+- The AST scanner's dunder/`getattr` hardening (see above) covers the
+  known class of Python sandbox-escape gadgets; it isn't a formal proof of
+  unbypassability. The Docker layer (no network, read-only, non-root,
+  dropped capabilities) is the load-bearing defense either way.

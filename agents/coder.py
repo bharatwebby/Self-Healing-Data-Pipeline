@@ -17,9 +17,15 @@ STRICT RULES for the code you generate:
    external_id (int), display_name (str), amount_cents (int)
 3. You may ONLY use these imports if needed: json, re, datetime, xml.etree.ElementTree
 4. NEVER import or use: os, sys, subprocess, socket, requests, urllib, shutil,
-   ctypes, eval, exec, compile, open, __import__
-5. Handle the shape described in field_mapping precisely.
-6. If PREVIOUS_ATTEMPT_FEEDBACK is provided, it describes what went wrong last
+   ctypes, importlib, pickle, marshal, platform, multiprocessing, threading, asyncio
+5. NEVER call: eval, exec, compile, open, __import__, getattr, setattr,
+   delattr, vars, globals, locals, input
+6. NEVER access any dunder attribute (anything shaped like __this__, e.g.
+   __class__, __bases__, __subclasses__, __globals__, __dict__, __mro__) —
+   there is never a legitimate reason for extract() to touch one, and an
+   automated scanner will reject the code outright if you do
+7. Handle the shape described in field_mapping precisely.
+8. If PREVIOUS_ATTEMPT_FEEDBACK is provided, it describes what went wrong last
    time — fix that specific issue, don't rewrite everything from scratch.
 
 Respond with ONLY the raw Python code. No markdown fences, no explanation,

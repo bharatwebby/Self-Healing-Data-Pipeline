@@ -2,8 +2,26 @@ import docker, base64, json
 from schema.target import TargetRecord
 from pydantic import ValidationError
 
-client = docker.from_env()
 SANDBOX_TIMEOUT_SECONDS = 10
+
+_client = None
+
+def _get_client():
+    """Lazily connects to the Docker daemon on first actual use, instead
+    of at import time. Importing core.sandbox (e.g. for tests, or from
+    the orchestrator before Docker Desktop has finished starting) must
+    never crash just because the daemon isn't reachable *yet* — only
+    trying to actually run something in the sandbox should."""
+    global _client
+    if _client is None:
+        try:
+            _client = docker.from_env()
+        except docker.errors.DockerException as e:
+            raise RuntimeError(
+                "Could not connect to the Docker daemon. The Sandbox Evaluator "
+                "requires Docker to be running. Original error: " + str(e)
+            ) from e
+    return _client
 
 def run_in_sandbox(generated_code: str, raw_sample: dict) -> dict:
     harness = (
@@ -24,6 +42,7 @@ def run_in_sandbox(generated_code: str, raw_sample: dict) -> dict:
 
     container = None
     try:
+        client = _get_client()
         container = client.containers.run(
             "python:3.11-slim",
             command=["python", "-c", bootstrap],
